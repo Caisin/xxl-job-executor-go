@@ -1,6 +1,7 @@
 package xxl
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/go-basic/ipv4"
 	"time"
 )
@@ -13,8 +14,8 @@ type Options struct {
 	ExecutorPort string        `json:"executor_port"` //本地(执行器)端口
 	RegistryKey  string        `json:"registry_key"`  //执行器名称
 	LogDir       string        `json:"log_dir"`       //日志目录
-
-	l Logger //日志处理
+	ginEngine    *gin.Engine   //ginEngine
+	l            Logger        //日志处理
 }
 
 func newOptions(opts ...Option) Options {
@@ -41,6 +42,13 @@ var (
 	DefaultExecutorPort = "9999"
 	DefaultRegistryKey  = "golang-jobs"
 )
+
+// Gin 设置gin
+func Gin(ginEngine *gin.Engine) Option {
+	return func(o *Options) {
+		o.ginEngine = ginEngine
+	}
+}
 
 // ServerAddr 设置调度中心地址
 func ServerAddr(addr string) Option {

@@ -33,7 +33,7 @@ func main() {
 	log.Fatal(exec.Run())
 }
 
-//xxl.Logger接口实现
+// xxl.Logger接口实现
 type logger struct{}
 
 func (l *logger) Info(format string, a ...interface{}) {

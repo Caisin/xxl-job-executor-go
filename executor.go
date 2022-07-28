@@ -3,6 +3,7 @@ package xxl
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -36,6 +37,8 @@ type Executor interface {
 	Run() error
 	// Stop 停止服务
 	Stop()
+	// GetAccessToken 获取token
+	GetAccessToken() string
 }
 
 // NewExecutor 创建执行器
@@ -83,6 +86,11 @@ func (e *executor) LogHandler(handler LogHandler) {
 }
 
 func (e *executor) Run() (err error) {
+	//如果设置了gin 使用gin
+	if e.opts.ginEngine != nil {
+		ginMux(e.opts.ginEngine, e)
+		return
+	}
 	// 创建路由器
 	mux := http.NewServeMux()
 	// 设置路由规则
@@ -119,7 +127,7 @@ func (e *executor) RegTask(pattern string, task TaskFunc) {
 	return
 }
 
-//运行一个任务
+// 运行一个任务
 func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -173,7 +181,7 @@ func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write(returnGeneral())
 }
 
-//删除一个任务
+// 删除一个任务
 func (e *executor) killTask(writer http.ResponseWriter, request *http.Request) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -191,10 +199,10 @@ func (e *executor) killTask(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write(returnGeneral())
 }
 
-//任务日志
+// 任务日志
 func (e *executor) taskLog(writer http.ResponseWriter, request *http.Request) {
 	var res *LogRes
-	data, err := ioutil.ReadAll(request.Body)
+	data, err := io.ReadAll(request.Body)
 	req := &LogReq{}
 	if err != nil {
 		e.log.Error("日志请求失败:" + err.Error())
@@ -244,7 +252,7 @@ func (e *executor) idleBeat(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write(returnGeneral())
 }
 
-//注册执行器到调度中心
+// 注册执行器到调度中心
 func (e *executor) registry() {
 
 	t := time.NewTimer(time.Second * 0) //初始立即执行
@@ -285,7 +293,7 @@ func (e *executor) registry() {
 	}
 }
 
-//执行器注册摘除
+// 执行器注册摘除
 func (e *executor) registryRemove() {
 	t := time.NewTimer(time.Second * 0) //初始立即执行
 	defer t.Stop()
@@ -304,12 +312,12 @@ func (e *executor) registryRemove() {
 		e.log.Error("执行器摘除失败:" + err.Error())
 		return
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	e.log.Info("执行器摘除成功:" + string(body))
 	_ = res.Body.Close()
 }
 
-//回调任务列表
+// 回调任务列表
 func (e *executor) callback(task *Task, code int64, msg string) {
 	e.runList.Del(Int64ToStr(task.Id))
 	res, err := e.post("/api/callback", string(returnCall(task.Param, code, msg)))
@@ -317,7 +325,7 @@ func (e *executor) callback(task *Task, code int64, msg string) {
 		e.log.Error("callback err : ", err.Error())
 		return
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		e.log.Error("callback ReadAll err : ", err.Error())
 		return
@@ -325,7 +333,7 @@ func (e *executor) callback(task *Task, code int64, msg string) {
 	e.log.Info("任务回调成功:" + string(body))
 }
 
-//post
+// post
 func (e *executor) post(action, body string) (resp *http.Response, err error) {
 	request, err := http.NewRequest("POST", e.opts.ServerAddr+action, strings.NewReader(body))
 	if err != nil {
@@ -362,4 +370,9 @@ func (e *executor) Beat(writer http.ResponseWriter, request *http.Request) {
 // IdleBeat 忙碌检测
 func (e *executor) IdleBeat(writer http.ResponseWriter, request *http.Request) {
 	e.idleBeat(writer, request)
+}
+
+// IdleBeat 忙碌检测
+func (e *executor) GetAccessToken() string {
+	return e.opts.AccessToken
 }
